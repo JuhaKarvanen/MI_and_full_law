@@ -2,4 +2,4 @@ The R code for the paper J. Karvanen, S. Tikka (2024), Multiple imputation and f
 
 Files
 * examples_dosearch.R, Derives the identifying functionals for the examples
-* simulation_examples.R, Simulation experiments, reproduces Table 1, 2 and 3
+* simulation_examples.R, Simulation experiments, reproduces Tables 1, 2 and 3
