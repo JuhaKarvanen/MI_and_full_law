@@ -1,8 +1,9 @@
-# File: examples_mice.R
+# File: simulation_examples.R
 # Author: Juha Karvanen
-# Date: 2024-10-24
+# Date: 2025-05-05
 # Summary: R code to reproduce the simulation results for Examples 1, 2, 3 and 4 
-# of the paperJ. Karvanen, S. Tikka (2024), Multiple imputation and full law identifiability.
+# of the paper J. Karvanen, S. Tikka (2025), Multiple imputation and full law identifiability.
+
 
 library(mice, quietly = TRUE, warn.conflicts = FALSE)
 expit <- function(x) exp(x)/(1+exp(x))
@@ -11,7 +12,8 @@ n <- 1000000
 
 results_1 <- data.frame(
   statistic = c("$\\E(X)$","$\\E(Y)$","$\\sd(X)$","$\\sd(Y)$","$\\Cor(X,Y)$"),
-  truth = c(0,0,1,sqrt(2),sqrt(2)/2), mi = rep(NA,5), midecomp = rep(NA,5),  
+  truth = c(0,0,1,sqrt(2),sqrt(2)/2), mi = rep(NA,5), miri = rep(NA,5), 
+            midecomp = rep(NA,5),  
             cca = rep(NA,5), aca = rep(NA,5), dosearch = rep(NA,5))
 rownames(results_1) <- c("x","y","sx","sy","r")
 results_2 <- results_1
@@ -33,13 +35,8 @@ y <- y1
 y[!ry] <- NA
 da <- data.frame(x = x, y = y, rx = rx, ry = ry)
 
-# Standard multiple imputation
-predmatrix <- make.predictorMatrix(da)
-predmatrix["x","rx"] <- 0
-predmatrix["y","ry"] <- 0
-im1 <- mice(da, method = c("norm","norm","mean","mean"),
-            predictorMatrix = predmatrix,
-            visitSequence = c("x","y","rx","ry"), maxit = 10,
+# Standard multiple imputation (without response indicators)
+im1 <- mice(da[,c("x","y")], method = c("norm","norm"),
             printFlag = FALSE)
 meanx <- with(im1,mean(x))
 meany <- with(im1,mean(y))
@@ -53,23 +50,26 @@ results_1["sx","mi"] <- mean(unlist(sdx$analyses))
 results_1["sy","mi"] <- mean(unlist(sdy$analyses))
 results_1["r","mi"] <- mean(unlist(cor$analyses))
 
-# Decomposable multiple imputation
-dadecomp <- da
-dadecomp$y[rx == 0 & ry == 1] <- NA 
-im1decomp <- mice(dadecomp[,c("x","y")], method = c("sample","norm"),
-                visitSequence = c("x","y"), maxit = 10,
-                printFlag = FALSE)
-meanx <- with(im1decomp,mean(x))
-meany <- with(im1decomp,mean(y))
-sdx <- with(im1decomp,sd(x))
-sdy <- with(im1decomp,sd(y))
-cor <- with(im1decomp,cor(x,y))
 
-results_1["x","midecomp"] <- mean(unlist(meanx$analyses))
-results_1["y","midecomp"] <- mean(unlist(meany$analyses))
-results_1["sx","midecomp"] <- mean(unlist(sdx$analyses))
-results_1["sy","midecomp"] <- mean(unlist(sdy$analyses))
-results_1["r","midecomp"] <- mean(unlist(cor$analyses))
+# Multiple imputation with response indicators
+predmatrix <- make.predictorMatrix(da)
+predmatrix["x","rx"] <- 0
+predmatrix["y","ry"] <- 0
+im1 <- mice(da, method = c("norm","norm","mean","mean"),
+            predictorMatrix = predmatrix,
+            visitSequence = c("x","y","rx","ry"), 
+            printFlag = FALSE)
+meanx <- with(im1,mean(x))
+meany <- with(im1,mean(y))
+sdx <- with(im1,sd(x))
+sdy <- with(im1,sd(y))
+cor <- with(im1,cor(x,y))
+
+results_1["x","miri"] <- mean(unlist(meanx$analyses))
+results_1["y","miri"] <- mean(unlist(meany$analyses))
+results_1["sx","miri"] <- mean(unlist(sdx$analyses))
+results_1["sy","miri"] <- mean(unlist(sdy$analyses))
+results_1["r","miri"] <- mean(unlist(cor$analyses))
 
 # Complete case analysis
 dacc <- da[rx & ry,]
@@ -114,23 +114,27 @@ latextable<-function(td) {
 } 
 
 tab_1 <- results_1
-# tab_1$truth <- formatC(tab_1$truth, digits = 2, format = "f")
-# tab_1$mi <- formatC(tab_1$mi, digits = 2, format = "f")
-# tab_1$midecomp <- formatC(tab_1$midecomp, digits = 2, format = "f")
-# tab_1$cca <- formatC(tab_1$cca, digits = 2, format = "f")
-# tab_1$aca <- formatC(tab_1$aca, digits = 2, format = "f")
-# tab_1$dosearch <- formatC(tab_1$dosearch, digits = 2, format = "f")
 tab_1$truth <- paste0("$", formatC(tab_1$truth, digits = 2, format = "f"), "$")
 tab_1$mi <- paste0("$", formatC(tab_1$mi, digits = 2, format = "f"), "$")
-tab_1$midecomp <- paste0("$", formatC(tab_1$midecomp, digits = 2, format = "f"), "$")
+tab_1$miri <- paste0("$", formatC(tab_1$miri, digits = 2, format = "f"), "$")
 tab_1$cca <- paste0("$", formatC(tab_1$cca, digits = 2, format = "f"), "$")
 tab_1$aca <- paste0("$", formatC(tab_1$aca, digits = 2, format = "f"), "$")
 tab_1$dosearch <- paste0("$", formatC(tab_1$dosearch, digits = 2, format = "f"), "$")
 
+tab_1b <- results_1
+tab_1b$mi <- paste0("$", formatC(tab_1b$mi - tab_1b$truth, digits = 2, format = "f"), "$")
+tab_1b$miri <- paste0("$", formatC(tab_1b$miri- tab_1b$truth, digits = 2, format = "f"), "$")
+tab_1b$cca <- paste0("$", formatC(tab_1b$cca - tab_1b$truth, digits = 2, format = "f"), "$")
+tab_1b$aca <- paste0("$", formatC(tab_1b$aca - tab_1b$truth, digits = 2, format = "f"), "$")
+tab_1b$dosearch <- paste0("$", formatC(tab_1b$dosearch - tab_1b$truth, digits = 2, format = "f"), "$")
+tab_1b$truth <- paste0("$", formatC(tab_1b$truth, digits = 2, format = "f"), "$")
+
 cat("\nExample 1:\n")
-cat(latextable(tab_1[,-4]))
+cat(c("statistic","truth","mi","miri","cca","aca","dosearch"),"\n")
+cat(latextable(tab_1[,c("statistic","truth","mi","miri","cca","aca","dosearch")]))
 
-
+cat(c("statistic","truth","mi","miri","cca","aca","dosearch"),"\n")
+cat(latextable(tab_1b[,c("statistic","truth","mi","miri","cca","aca","dosearch")]))
 
 ############################################################################
 # Example 2
@@ -147,13 +151,8 @@ y <- y1
 y[!ry] <- NA
 da <- data.frame(x = x, y = y, rx = rx, ry = ry)
 
-# Standard multiple imputation
-predmatrix <- make.predictorMatrix(da)
-predmatrix["x","rx"] <- 0
-predmatrix["y","ry"] <- 0
-im2 <- mice(da, method = c("norm","norm","mean","mean"),
-            predictorMatrix = predmatrix,
-            visitSequence = c("x","y","rx","ry"), maxit = 10,
+# Standard multiple imputation (without response indicators)
+im2 <- mice(da[,c("x","y")], method = c("norm","norm"),
             printFlag = FALSE)
 meanx <- with(im2,mean(x))
 meany <- with(im2,mean(y))
@@ -167,11 +166,32 @@ results_2["sx","mi"] <- mean(unlist(sdx$analyses))
 results_2["sy","mi"] <- mean(unlist(sdy$analyses))
 results_2["r","mi"] <- mean(unlist(cor$analyses))
 
+# Multiple imputation with response indicators
+predmatrix <- make.predictorMatrix(da)
+predmatrix["x","rx"] <- 0
+predmatrix["y","ry"] <- 0
+im2 <- mice(da, method = c("norm","norm","mean","mean"),
+            predictorMatrix = predmatrix,
+            visitSequence = c("x","y","rx","ry"), 
+            printFlag = FALSE)
+meanx <- with(im2,mean(x))
+meany <- with(im2,mean(y))
+sdx <- with(im2,sd(x))
+sdy <- with(im2,sd(y))
+cor <- with(im2,cor(x,y))
+
+results_2["x","miri"] <- mean(unlist(meanx$analyses))
+results_2["y","miri"] <- mean(unlist(meany$analyses))
+results_2["sx","miri"] <- mean(unlist(sdx$analyses))
+results_2["sy","miri"] <- mean(unlist(sdy$analyses))
+results_2["r","miri"] <- mean(unlist(cor$analyses))
+
+
 # Decomposable multiple imputation
 dadecomp <- da
 dadecomp$y[rx == 0 & ry == 1] <- NA 
 im2decomp <- mice(dadecomp[,c("x","y")], method = c("sample","norm"),
-                visitSequence = c("x","y"), maxit = 10,
+                visitSequence = c("x","y"), maxit = 1,
                 printFlag = FALSE)
 meanx <- with(im2decomp,mean(x))
 meany <- with(im2decomp,mean(y))
@@ -214,26 +234,29 @@ results_2["r","dosearch"] <- cor(dax$x,ysim)
 
 # Reporting
 tab_2 <- results_2
-# tab_2$truth <- formatC(tab_2$truth, digits = 2, format = "f")
-# tab_2$mi <- formatC(tab_2$mi, digits = 2, format = "f")
-# tab_2$midecomp <- formatC(tab_2$midecomp, digits = 2, format = "f")
-# tab_2$cca <- formatC(tab_2$cca, digits = 2, format = "f")
-# tab_2$aca <- formatC(tab_2$aca, digits = 2, format = "f")
-# tab_2$dosearch <- formatC(tab_2$dosearch, digits = 2, format = "f")
 tab_2$truth <- paste0("$", formatC(tab_2$truth, digits = 2, format = "f"), "$")
 tab_2$mi <- paste0("$", formatC(tab_2$mi, digits = 2, format = "f"), "$")
+tab_2$miri <- paste0("$", formatC(tab_2$miri, digits = 2, format = "f"), "$")
 tab_2$midecomp <- paste0("$", formatC(tab_2$midecomp, digits = 2, format = "f"), "$")
 tab_2$cca <- paste0("$", formatC(tab_2$cca, digits = 2, format = "f"), "$")
 tab_2$aca <- paste0("$", formatC(tab_2$aca, digits = 2, format = "f"), "$")
 tab_2$dosearch <- paste0("$", formatC(tab_2$dosearch, digits = 2, format = "f"), "$")
 
+tab_2b <- results_2
+tab_2b$mi <- paste0("$", formatC(tab_2b$mi - tab_2b$truth, digits = 2, format = "f"), "$")
+tab_2b$miri <- paste0("$", formatC(tab_2b$miri- tab_2b$truth, digits = 2, format = "f"), "$")
+tab_2b$midecomp <- paste0("$", formatC(tab_2b$midecomp - tab_2b$truth, digits = 2, format = "f"), "$")
+tab_2b$cca <- paste0("$", formatC(tab_2b$cca - tab_2b$truth, digits = 2, format = "f"), "$")
+tab_2b$aca <- paste0("$", formatC(tab_2b$aca - tab_2b$truth, digits = 2, format = "f"), "$")
+tab_2b$dosearch <- paste0("$", formatC(tab_2b$dosearch - tab_2b$truth, digits = 2, format = "f"), "$")
+tab_2b$truth <- paste0("$", formatC(tab_2b$truth, digits = 2, format = "f"), "$")
+
 cat("\nExample 2:\n")
-cat(latextable(tab_2[,-4]))
-cat(latextable(tab_2[,1:4]))
+cat(c("statistic","truth","mi","miri","cca","aca","dosearch","midecomp"),"\n")
+cat(latextable(tab_2[,c("statistic","truth","mi","miri","cca","aca","dosearch","midecomp")]))
 
-
-
-
+cat(c("statistic","truth","mi","miri","cca","aca","dosearch","midecomp"),"\n")
+cat(latextable(tab_2b[,c("statistic","truth","mi","miri","cca","aca","dosearch","midecomp")]))
 
 ############################################################################
 # Example 3
@@ -250,13 +273,8 @@ y <- y1
 y[!ry] <- NA
 da <- data.frame(x = x, y = y, rx = rx, ry = ry)
 
-# Standard multiple imputation
-predmatrix <- make.predictorMatrix(da)
-predmatrix["x","rx"] <- 0
-predmatrix["y","ry"] <- 0
-im3 <- mice(da, method = c("norm","norm","mean","mean"),
-            predictorMatrix = predmatrix,
-            visitSequence = c("x","y","rx","ry"), maxit = 10,
+# Standard multiple imputation (without response indicators)
+im3 <- mice(da[,c("x","y")], method = c("norm","norm"),
             printFlag = FALSE)
 meanx <- with(im3,mean(x))
 meany <- with(im3,mean(y))
@@ -269,6 +287,27 @@ results_3["y","mi"] <- mean(unlist(meany$analyses))
 results_3["sx","mi"] <- mean(unlist(sdx$analyses))
 results_3["sy","mi"] <- mean(unlist(sdy$analyses))
 results_3["r","mi"] <- mean(unlist(cor$analyses))
+
+# Multiple imputation with response indicators
+predmatrix <- make.predictorMatrix(da)
+predmatrix["x","rx"] <- 0
+predmatrix["y","ry"] <- 0
+im3 <- mice(da, method = c("norm","norm","mean","mean"),
+            predictorMatrix = predmatrix,
+            visitSequence = c("x","y","rx","ry"), 
+            printFlag = FALSE)
+meanx <- with(im3,mean(x))
+meany <- with(im3,mean(y))
+sdx <- with(im3,sd(x))
+sdy <- with(im3,sd(y))
+cor <- with(im3,cor(x,y))
+
+results_3["x","miri"] <- mean(unlist(meanx$analyses))
+results_3["y","miri"] <- mean(unlist(meany$analyses))
+results_3["sx","miri"] <- mean(unlist(sdx$analyses))
+results_3["sy","miri"] <- mean(unlist(sdy$analyses))
+results_3["r","miri"] <- mean(unlist(cor$analyses))
+
 
 # Decomposable multiple imputation
 dadecomp <- da
@@ -319,25 +358,29 @@ results_3["r","dosearch"] <- cor(dax$x,ysim)
 
 # Reporting
 tab_3 <- results_3
-# tab_3$truth <- formatC(tab_3$truth, digits = 2, format = "f")
-# tab_3$mi <- formatC(tab_3$mi, digits = 2, format = "f")
-# tab_3$midecomp <- formatC(tab_3$midecomp, digits = 2, format = "f")
-# tab_3$cca <- formatC(tab_3$cca, digits = 2, format = "f")
-# tab_3$aca <- formatC(tab_3$aca, digits = 2, format = "f")
-# tab_3$dosearch <- formatC(tab_3$dosearch, digits = 2, format = "f")
 tab_3$truth <- paste0("$", formatC(tab_3$truth, digits = 2, format = "f"), "$")
 tab_3$mi <- paste0("$", formatC(tab_3$mi, digits = 2, format = "f"), "$")
+tab_3$miri <- paste0("$", formatC(tab_3$miri, digits = 2, format = "f"), "$")
 tab_3$midecomp <- paste0("$", formatC(tab_3$midecomp, digits = 2, format = "f"), "$")
 tab_3$cca <- paste0("$", formatC(tab_3$cca, digits = 2, format = "f"), "$")
 tab_3$aca <- paste0("$", formatC(tab_3$aca, digits = 2, format = "f"), "$")
 tab_3$dosearch <- paste0("$", formatC(tab_3$dosearch, digits = 2, format = "f"), "$")
 
-
+tab_3b <- results_3
+tab_3b$mi <- paste0("$", formatC(tab_3b$mi - tab_3b$truth, digits = 2, format = "f"), "$")
+tab_3b$miri <- paste0("$", formatC(tab_3b$miri- tab_3b$truth, digits = 2, format = "f"), "$")
+tab_3b$midecomp <- paste0("$", formatC(tab_3b$midecomp - tab_3b$truth, digits = 2, format = "f"), "$")
+tab_3b$cca <- paste0("$", formatC(tab_3b$cca - tab_3b$truth, digits = 2, format = "f"), "$")
+tab_3b$aca <- paste0("$", formatC(tab_3b$aca - tab_3b$truth, digits = 2, format = "f"), "$")
+tab_3b$dosearch <- paste0("$", formatC(tab_3b$dosearch - tab_3b$truth, digits = 2, format = "f"), "$")
+tab_3b$truth <- paste0("$", formatC(tab_3b$truth, digits = 2, format = "f"), "$")
 
 cat("\nExample 3:\n")
-cat(latextable(tab_3[,-4]))
-cat(latextable(tab_3[,1:4]))
+cat(c("statistic","truth","mi","miri","cca","aca","dosearch","midecomp"),"\n")
+cat(latextable(tab_3[,c("statistic","truth","mi","miri","cca","aca","dosearch","midecomp")]))
 
+cat(c("statistic","truth","mi","miri","cca","aca","dosearch","midecomp"),"\n")
+cat(latextable(tab_3b[,c("statistic","truth","mi","miri","cca","aca","dosearch","midecomp")]))
 
 ############################################################################
 # Example 4
@@ -362,7 +405,7 @@ y1 <- (x1 + z1 + rnorm(n,0,1))/sqrt(4)
 da1 <- data.frame(z = z1, w = w1, x = x1,  y = y1)
 rx <- as.numeric( expit(w1) > runif(n,0,1))
 rz <- as.numeric( 0.7 > runif(n,0,1) ) 
-rw <- as.numeric( expit(z1+2*rz-1) > runif(n,0,1))
+rw <- as.numeric( expit(z1 * (2*rz-1)) > runif(n,0,1))
 ry <- as.numeric( expit(x1) > runif(n,0,1)) 
 x <- x1
 x[!rx] <- NA
@@ -374,9 +417,9 @@ y <- y1
 y[!ry] <- NA
 da <- data.frame(x = x, w = w, z = z, y = y,  rx = rx, rw = rw, rz = rz, ry = ry)
 
-# Standard multiple imputation
+# Standard multiple imputation (without response indicators)
 im4 <- mice(da[,c("z","w","x","y")], method = c("norm","norm","norm","norm"),
-            printFlag = FALSE)
+             printFlag = FALSE) #An alternative without response indicators
 meanx <- with(im4,mean(x))
 meanw <- with(im4,mean(w))
 meanz <- with(im4,mean(z))
@@ -408,6 +451,48 @@ results_4["rwy","mi"] <- mean(unlist(corwy$analyses))
 results_4["rzy","mi"] <- mean(unlist(corzy$analyses))
 
 
+
+# Multiple imputation with response indicators
+predmatrix <- make.predictorMatrix(da)
+predmatrix["z","rz"] <- 0
+predmatrix["w","rw"] <- 0
+predmatrix["x","rx"] <- 0
+predmatrix["y","ry"] <- 0
+im4 <- mice(da, method = c("norm","norm","norm","norm","mean","mean","mean","mean"),
+            predictorMatrix = predmatrix,
+            visitSequence = c("z","w","x","y","rz","rw","rx","ry"), 
+            printFlag = FALSE)
+meanx <- with(im4,mean(x))
+meanw <- with(im4,mean(w))
+meanz <- with(im4,mean(z))
+meany <- with(im4,mean(y))
+sdx <- with(im4,sd(x))
+sdw <- with(im4,sd(w))
+sdz <- with(im4,sd(z))
+sdy <- with(im4,sd(y))
+corxw <- with(im4,cor(x,w))
+corxz <- with(im4,cor(x,z))
+corxy <- with(im4,cor(x,y))
+corwz <- with(im4,cor(w,z))
+corwy <- with(im4,cor(w,y))
+corzy <- with(im4,cor(z,y))
+
+results_4["x","miri"] <- mean(unlist(meanx$analyses))
+results_4["w","miri"] <- mean(unlist(meanw$analyses))
+results_4["z","miri"] <- mean(unlist(meanz$analyses))
+results_4["y","miri"] <- mean(unlist(meany$analyses))
+results_4["sx","miri"] <- mean(unlist(sdx$analyses))
+results_4["sw","miri"] <- mean(unlist(sdw$analyses))
+results_4["sz","miri"] <- mean(unlist(sdz$analyses))
+results_4["sy","miri"] <- mean(unlist(sdy$analyses))
+results_4["rxw","miri"] <- mean(unlist(corxw$analyses))
+results_4["rxz","miri"] <- mean(unlist(corxz$analyses))
+results_4["rxy","miri"] <- mean(unlist(corxy$analyses))
+results_4["rwz","miri"] <- mean(unlist(corwz$analyses))
+results_4["rwy","miri"] <- mean(unlist(corwy$analyses))
+results_4["rzy","miri"] <- mean(unlist(corzy$analyses))
+
+
 # Decomposable multiple imputation
 dadecomp <- da
 dadecomp$w[dadecomp$rz == 0] <- NA
@@ -417,7 +502,7 @@ dadecomp <- dadecomp[,c("z","w","x","y")]
 
 im4decomp <- mice(dadecomp, method = c("sample","norm","norm","norm"),
             formulas = list(z = z ~ 1, w = w ~ z, x = x ~ w, y = y ~ x + z),
-            visitSequence = c("z","w","x","y"), maxit = 5,
+            visitSequence = c("z","w","x","y"), maxit = 1,
             printFlag = FALSE)
 meanx <- with(im4decomp ,mean(x))
 meanw <- with(im4decomp ,mean(w))
@@ -489,6 +574,7 @@ tab_4 <- results_4
 tab_4$truth <- formatC(tab_4$truth, digits = 2, format = "f")
 tab_4$midecomp <- formatC(tab_4$midecomp, digits = 2, format = "f")
 tab_4$mi <- formatC(tab_4$mi, digits = 2, format = "f")
+tab_4$miri <- formatC(tab_4$miri, digits = 2, format = "f")
 tab_4$cca <- formatC(tab_4$cca, digits = 2, format = "f")
 tab_4$aca <- formatC(tab_4$aca, digits = 2, format = "f")
 
@@ -498,6 +584,24 @@ tab_4$mi <- paste0("$", formatC(tab_4$mi, digits = 2, format = "f"), "$")
 tab_4$cca <- paste0("$", formatC(tab_4$cca, digits = 2, format = "f"), "$")
 tab_4$aca <- paste0("$", formatC(tab_4$aca, digits = 2, format = "f"), "$")
 
-cat(latextable(tab_4))
+cat(c("statistic","truth","midecomp","mi","miri","cca","aca"),"\n")
+cat(latextable(tab_4[,c("statistic","truth","midecomp","mi","miri","cca","aca")]))
 
-#save.image(file = "simulation_results1234.Rdata")
+tab_4b <- results_4
+tab_4b$midecomp <- formatC(tab_4b$midecomp - tab_4b$truth, digits = 2, format = "f")
+tab_4b$mi <- formatC(tab_4b$mi- tab_4b$truth, digits = 2, format = "f")
+tab_4b$miri <- formatC(tab_4b$miri - tab_4b$truth, digits = 2, format = "f")
+tab_4b$cca <- formatC(tab_4b$cca- tab_4b$truth, digits = 2, format = "f")
+tab_4b$aca <- formatC(tab_4b$aca- tab_4b$truth, digits = 2, format = "f")
+tab_4b$truth <- formatC(tab_4b$truth, digits = 2, format = "f")
+
+tab_4b$truth <- paste0("$", formatC(tab_4b$truth, digits = 2, format = "f"), "$")
+tab_4b$midecomp <- paste0("$", formatC(tab_4b$midecomp, digits = 2, format = "f"), "$")
+tab_4b$mi <- paste0("$", formatC(tab_4b$mi, digits = 2, format = "f"), "$")
+tab_4b$cca <- paste0("$", formatC(tab_4b$cca, digits = 2, format = "f"), "$")
+tab_4b$aca <- paste0("$", formatC(tab_4b$aca, digits = 2, format = "f"), "$")
+
+cat(c("statistic","truth","midecomp","mi","miri","cca","aca"),"\n")
+cat(latextable(tab_4b[,c("statistic","truth","midecomp","mi","miri","cca","aca")]))
+
+#save.image(file = "simulation_results20250505.Rdata")
